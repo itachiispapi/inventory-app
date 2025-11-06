@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "40717949917",
+    "project_id": "inventory-app-aftongoulding",
+    "storage_bucket": "inventory-app-aftongoulding.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:40717949917:android:74684027ff0d32e8aaf434",
+        "android_client_info": {
+          "package_name": "com.example.inclass15"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKrbDPu5z3gvqk2L-sCyiLgT3ZAht-_-Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
