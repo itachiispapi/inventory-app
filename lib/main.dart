@@ -10,14 +10,7 @@ class Item {
   final double price;
   final String category;
   final DateTime createdAt;
-  const Item({
-    this.id,
-    required this.name,
-    required this.quantity,
-    required this.price,
-    required this.category,
-    required this.createdAt,
-  });
+  const Item({this.id, required this.name, required this.quantity, required this.price, required this.category, required this.createdAt});
   Map<String, dynamic> toMap() {
     return {
       'name': name,
@@ -27,7 +20,6 @@ class Item {
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }
-
   factory Item.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data()!;
     final ts = data['createdAt'] as Timestamp?;
@@ -40,14 +32,7 @@ class Item {
       createdAt: ts?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
-  Item copyWith({
-    String? id,
-    String? name,
-    int? quantity,
-    double? price,
-    String? category,
-    DateTime? createdAt,
-  }) {
+  Item copyWith({String? id, String? name, int? quantity, double? price, String? category, DateTime? createdAt}) {
     return Item(
       id: id ?? this.id,
       name: name ?? this.name,
@@ -62,28 +47,20 @@ class Item {
 class FirestoreService {
   static final FirestoreService I = FirestoreService._();
   FirestoreService._();
-  final _col = FirebaseFirestore.instance
-      .collection('items')
-      .withConverter<Item>(
-        fromFirestore: (snap, _) => Item.fromDoc(snap),
-        toFirestore: (item, _) => item.toMap(),
-      );
+  final _col = FirebaseFirestore.instance.collection('items').withConverter<Item>(
+    fromFirestore: (snap, _) => Item.fromDoc(snap),
+    toFirestore: (item, _) => item.toMap(),
+  );
   Stream<List<Item>> itemsStream() {
-    return _col
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((qs) => qs.docs.map((d) => d.data().copyWith(id: d.id)).toList());
+    return _col.orderBy('createdAt', descending: true).snapshots().map((qs) => qs.docs.map((d) => d.data().copyWith(id: d.id)).toList());
   }
-
   Future<void> addItem(Item item) async {
     await _col.add(item);
   }
-
   Future<void> updateItem(Item item) async {
     if (item.id == null) return;
     await _col.doc(item.id!).set(item);
   }
-
   Future<void> deleteItem(String id) async {
     await _col.doc(id).delete();
   }
@@ -117,9 +94,7 @@ class InventoryHomePage extends StatelessWidget {
         stream: FirestoreService.I.itemsStream(),
         builder: (context, snap) {
           if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
-          if (!snap.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           final items = snap.data!;
           if (items.isEmpty) return const Center(child: Text('No items'));
           return ListView.builder(
@@ -128,12 +103,8 @@ class InventoryHomePage extends StatelessWidget {
               final item = items[i];
               return ListTile(
                 title: Text(item.name),
-                subtitle: Text(
-                  'Qty: ${item.quantity} • \$${item.price.toStringAsFixed(2)} • ${item.category}',
-                ),
-                trailing: Text(
-                  '\$${(item.quantity * item.price).toStringAsFixed(2)}',
-                ),
+                subtitle: Text('Qty: ${item.quantity} • \$${item.price.toStringAsFixed(2)} • ${item.category}'),
+                trailing: Text('\$${(item.quantity * item.price).toStringAsFixed(2)}'),
               );
             },
           );
@@ -142,7 +113,99 @@ class InventoryHomePage extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),
         label: const Text('Add'),
-        onPressed: () {},
+        onPressed: () {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddEditItemScreen()));
+        },
+      ),
+    );
+  }
+}
+
+class AddEditItemScreen extends StatefulWidget {
+  final Item? initial;
+  const AddEditItemScreen({super.key, this.initial});
+  @override
+  State<AddEditItemScreen> createState() => _AddEditItemScreenState();
+}
+
+class _AddEditItemScreenState extends State<AddEditItemScreen> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _name;
+  late final TextEditingController _quantity;
+  late final TextEditingController _price;
+  late final TextEditingController _category;
+
+  @override
+  void initState() {
+    super.initState();
+    final i = widget.initial;
+    _name = TextEditingController(text: i?.name ?? '');
+    _quantity = TextEditingController(text: i?.quantity.toString() ?? '');
+    _price = TextEditingController(text: i?.price.toString() ?? '');
+    _category = TextEditingController(text: i?.category ?? '');
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _quantity.dispose();
+    _price.dispose();
+    _category.dispose();
+    super.dispose();
+  }
+
+  String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'Required' : null;
+  String? _isInt(String? v) {
+    if (_req(v) != null) return 'Required';
+    return int.tryParse(v!.trim()) == null ? 'Enter a whole number' : null;
+  }
+  String? _isDouble(String? v) {
+    if (_req(v) != null) return 'Required';
+    return double.tryParse(v!.trim()) == null ? 'Enter a number' : null;
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    final now = DateTime.now();
+    final base = Item(
+      id: widget.initial?.id,
+      name: _name.text.trim(),
+      quantity: int.parse(_quantity.text.trim()),
+      price: double.parse(_price.text.trim()),
+      category: _category.text.trim(),
+      createdAt: widget.initial?.createdAt ?? now,
+    );
+    if (widget.initial == null) {
+      await FirestoreService.I.addItem(base);
+    } else {
+      await FirestoreService.I.updateItem(base);
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final editing = widget.initial != null;
+    return Scaffold(
+      appBar: AppBar(title: Text(editing ? 'Edit Item' : 'Add Item')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(children: [
+            TextFormField(controller: _name, decoration: const InputDecoration(labelText: 'Name'), validator: _req, textInputAction: TextInputAction.next),
+            const SizedBox(height: 12),
+            TextFormField(controller: _quantity, decoration: const InputDecoration(labelText: 'Quantity'), validator: _isInt, keyboardType: TextInputType.number, textInputAction: TextInputAction.next),
+            const SizedBox(height: 12),
+            TextFormField(controller: _price, decoration: const InputDecoration(labelText: 'Price'), validator: _isDouble, keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: true), textInputAction: TextInputAction.next),
+            const SizedBox(height: 12),
+            TextFormField(controller: _category, decoration: const InputDecoration(labelText: 'Category'), validator: _req, textInputAction: TextInputAction.done, onFieldSubmitted: (_) => _save()),
+            const SizedBox(height: 20),
+            Row(children: [
+              Expanded(child: FilledButton(onPressed: _save, child: Text(editing ? 'Save Changes' : 'Add Item'))),
+            ]),
+          ]),
+        ),
       ),
     );
   }
