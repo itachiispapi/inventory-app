@@ -84,31 +84,75 @@ class InventoryApp extends StatelessWidget {
   }
 }
 
-class InventoryHomePage extends StatelessWidget {
+class InventoryHomePage extends StatefulWidget {
   const InventoryHomePage({super.key});
+  @override
+  State<InventoryHomePage> createState() => _InventoryHomePageState();
+}
+
+class _InventoryHomePageState extends State<InventoryHomePage> {
+  String _query = '';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Inventory')),
-      body: StreamBuilder<List<Item>>(
-        stream: FirestoreService.I.itemsStream(),
-        builder: (context, snap) {
-          if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-          final items = snap.data!;
-          if (items.isEmpty) return const Center(child: Text('No items'));
-          return ListView.builder(
-            itemCount: items.length,
-            itemBuilder: (context, i) {
-              final item = items[i];
-              return ListTile(
-                title: Text(item.name),
-                subtitle: Text('Qty: ${item.quantity} • \$${item.price.toStringAsFixed(2)} • ${item.category}'),
-                trailing: Text('\$${(item.quantity * item.price).toStringAsFixed(2)}'),
-              );
-            },
-          );
-        },
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: TextField(
+              onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                labelText: 'Search by name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<List<Item>>(
+              stream: FirestoreService.I.itemsStream(),
+              builder: (context, snap) {
+                if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
+                if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+                var items = snap.data!;
+                if (_query.isNotEmpty) {
+                  items = items.where((i) => i.name.toLowerCase().contains(_query)).toList();
+                }
+                if (items.isEmpty) return const Center(child: Text('No items'));
+                return ListView.builder(
+                  itemCount: items.length,
+                  itemBuilder: (context, i) {
+                    final item = items[i];
+                    return Dismissible(
+                      key: ValueKey(item.id),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: const Icon(Icons.delete),
+                      ),
+                      onDismissed: (_) {
+                        if (item.id != null) {
+                          FirestoreService.I.deleteItem(item.id!);
+                        }
+                      },
+                      child: ListTile(
+                        title: Text(item.name),
+                        subtitle: Text('Qty: ${item.quantity} • \$${item.price.toStringAsFixed(2)} • ${item.category}'),
+                        trailing: Text('\$${(item.quantity * item.price).toStringAsFixed(2)}'),
+                        onTap: () {
+                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddEditItemScreen(initial: item)));
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),
@@ -120,6 +164,7 @@ class InventoryHomePage extends StatelessWidget {
     );
   }
 }
+
 
 class AddEditItemScreen extends StatefulWidget {
   final Item? initial;
