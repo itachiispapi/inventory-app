@@ -10,7 +10,14 @@ class Item {
   final double price;
   final String category;
   final DateTime createdAt;
-  const Item({this.id, required this.name, required this.quantity, required this.price, required this.category, required this.createdAt});
+  const Item({
+    this.id,
+    required this.name,
+    required this.quantity,
+    required this.price,
+    required this.category,
+    required this.createdAt,
+  });
   Map<String, dynamic> toMap() {
     return {
       'name': name,
@@ -20,19 +27,38 @@ class Item {
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }
+
   factory Item.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data()!;
-    final ts = data['createdAt'] as Timestamp?;
+    final data = doc.data() ?? const {};
+    final ts = data['createdAt'];
+    final qty =
+        (data['quantity'] as num?)?.toInt() ??
+        int.tryParse('${data['quantity']}') ??
+        0;
+    final price =
+        (data['price'] as num?)?.toDouble() ??
+        double.tryParse('${data['price']}') ??
+        0.0;
+
     return Item(
       id: doc.id,
-      name: (data['name'] ?? '') as String,
-      quantity: (data['quantity'] ?? 0) as int,
-      price: (data['price'] ?? 0).toDouble(),
-      category: (data['category'] ?? '') as String,
-      createdAt: ts?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0),
+      name: (data['name'] ?? '').toString(),
+      quantity: qty,
+      price: price,
+      category: (data['category'] ?? '').toString(),
+      createdAt: ts is Timestamp
+          ? ts.toDate()
+          : DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
-  Item copyWith({String? id, String? name, int? quantity, double? price, String? category, DateTime? createdAt}) {
+  Item copyWith({
+    String? id,
+    String? name,
+    int? quantity,
+    double? price,
+    String? category,
+    DateTime? createdAt,
+  }) {
     return Item(
       id: id ?? this.id,
       name: name ?? this.name,
@@ -47,20 +73,28 @@ class Item {
 class FirestoreService {
   static final FirestoreService I = FirestoreService._();
   FirestoreService._();
-  final _col = FirebaseFirestore.instance.collection('items').withConverter<Item>(
-    fromFirestore: (snap, _) => Item.fromDoc(snap),
-    toFirestore: (item, _) => item.toMap(),
-  );
+  final _col = FirebaseFirestore.instance
+      .collection('items')
+      .withConverter<Item>(
+        fromFirestore: (snap, _) => Item.fromDoc(snap),
+        toFirestore: (item, _) => item.toMap(),
+      );
   Stream<List<Item>> itemsStream() {
-    return _col.orderBy('createdAt', descending: true).snapshots().map((qs) => qs.docs.map((d) => d.data().copyWith(id: d.id)).toList());
+    return _col
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((qs) => qs.docs.map((d) => d.data().copyWith(id: d.id)).toList());
   }
+
   Future<void> addItem(Item item) async {
     await _col.add(item);
   }
+
   Future<void> updateItem(Item item) async {
     if (item.id == null) return;
     await _col.doc(item.id!).set(item);
   }
+
   Future<void> deleteItem(String id) async {
     await _col.doc(id).delete();
   }
@@ -114,11 +148,15 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
             child: StreamBuilder<List<Item>>(
               stream: FirestoreService.I.itemsStream(),
               builder: (context, snap) {
-                if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
-                if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+                if (snap.hasError)
+                  return Center(child: Text('Error: ${snap.error}'));
+                if (!snap.hasData)
+                  return const Center(child: CircularProgressIndicator());
                 var items = snap.data!;
                 if (_query.isNotEmpty) {
-                  items = items.where((i) => i.name.toLowerCase().contains(_query)).toList();
+                  items = items
+                      .where((i) => i.name.toLowerCase().contains(_query))
+                      .toList();
                 }
                 if (items.isEmpty) return const Center(child: Text('No items'));
                 return ListView.builder(
@@ -140,10 +178,18 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
                       },
                       child: ListTile(
                         title: Text(item.name),
-                        subtitle: Text('Qty: ${item.quantity} • \$${item.price.toStringAsFixed(2)} • ${item.category}'),
-                        trailing: Text('\$${(item.quantity * item.price).toStringAsFixed(2)}'),
+                        subtitle: Text(
+                          'Qty: ${item.quantity} • \$${item.price.toStringAsFixed(2)} • ${item.category}',
+                        ),
+                        trailing: Text(
+                          '\$${(item.quantity * item.price).toStringAsFixed(2)}',
+                        ),
                         onTap: () {
-                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddEditItemScreen(initial: item)));
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => AddEditItemScreen(initial: item),
+                            ),
+                          );
                         },
                       ),
                     );
@@ -158,13 +204,14 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
         icon: const Icon(Icons.add),
         label: const Text('Add'),
         onPressed: () {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddEditItemScreen()));
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const AddEditItemScreen()));
         },
       ),
     );
   }
 }
-
 
 class AddEditItemScreen extends StatefulWidget {
   final Item? initial;
@@ -199,11 +246,13 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     super.dispose();
   }
 
-  String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'Required' : null;
+  String? _req(String? v) =>
+      (v == null || v.trim().isEmpty) ? 'Required' : null;
   String? _isInt(String? v) {
     if (_req(v) != null) return 'Required';
     return int.tryParse(v!.trim()) == null ? 'Enter a whole number' : null;
   }
+
   String? _isDouble(String? v) {
     if (_req(v) != null) return 'Required';
     return double.tryParse(v!.trim()) == null ? 'Enter a number' : null;
@@ -237,19 +286,54 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
-          child: Column(children: [
-            TextFormField(controller: _name, decoration: const InputDecoration(labelText: 'Name'), validator: _req, textInputAction: TextInputAction.next),
-            const SizedBox(height: 12),
-            TextFormField(controller: _quantity, decoration: const InputDecoration(labelText: 'Quantity'), validator: _isInt, keyboardType: TextInputType.number, textInputAction: TextInputAction.next),
-            const SizedBox(height: 12),
-            TextFormField(controller: _price, decoration: const InputDecoration(labelText: 'Price'), validator: _isDouble, keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: true), textInputAction: TextInputAction.next),
-            const SizedBox(height: 12),
-            TextFormField(controller: _category, decoration: const InputDecoration(labelText: 'Category'), validator: _req, textInputAction: TextInputAction.done, onFieldSubmitted: (_) => _save()),
-            const SizedBox(height: 20),
-            Row(children: [
-              Expanded(child: FilledButton(onPressed: _save, child: Text(editing ? 'Save Changes' : 'Add Item'))),
-            ]),
-          ]),
+          child: Column(
+            children: [
+              TextFormField(
+                controller: _name,
+                decoration: const InputDecoration(labelText: 'Name'),
+                validator: _req,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _quantity,
+                decoration: const InputDecoration(labelText: 'Quantity'),
+                validator: _isInt,
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _price,
+                decoration: const InputDecoration(labelText: 'Price'),
+                validator: _isDouble,
+                keyboardType: const TextInputType.numberWithOptions(
+                  signed: false,
+                  decimal: true,
+                ),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _category,
+                decoration: const InputDecoration(labelText: 'Category'),
+                validator: _req,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _save(),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _save,
+                      child: Text(editing ? 'Save Changes' : 'Add Item'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

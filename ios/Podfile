@@ -1,5 +1,5 @@
 # Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+platform :ios, '13.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -38,6 +38,40 @@ end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-    flutter_additional_ios_build_settings(target)
+    # Keep Flutter's default settings if available
+    flutter_additional_ios_build_settings(target) if defined?(flutter_additional_ios_build_settings)
+
+    # Make all pods match your declared iOS minimum
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+    end
+
+    # Old '-G...' fatal flag only seen in BoringSSL-GRPC on Xcode 16
+    if target.name == 'BoringSSL-GRPC'
+      target.source_build_phase.files.each do |file|
+        next unless file.settings && file.settings['COMPILER_FLAGS']
+        flags = file.settings['COMPILER_FLAGS'].split
+        flags.reject! { |f| f == '-GCC_WARN_INHIBIT_ALL_WARNINGS' }
+        file.settings['COMPILER_FLAGS'] = flags.join(' ')
+      end
+    end
+  end
+
+  # ---- Robust gRPC template patch for Clang 16.3+ (CWG-96) ----
+  # Patch BOTH gRPC-Core and gRPC-C++ copies, across any occurrences.
+  files = Dir.glob('Pods/gRPC-*/src/core/lib/promise/detail/basic_seq.h')
+  files.each do |path|
+    txt = File.read(path)
+    # handle spacing variants of `Traits::template CallSeqFactory(...`
+    patched = txt.gsub(/Traits::\s*template\s+CallSeqFactory\((?=[^)]*\))/,
+                       'Traits::template CallSeqFactory<>( ')
+                 .gsub(/Traits::\s*template\s+CallSeqFactory\(\s*/, 'Traits::template CallSeqFactory<>( ')
+    if patched != txt
+      File.write(path, patched)
+      puts "Patched gRPC template call in: #{path}"
+    else
+      puts "No gRPC template patch needed in: #{path}"
+    end
   end
 end
+

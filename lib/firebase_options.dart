@@ -85,4 +85,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'inventory-app-aftongoulding.firebasestorage.app',
     measurementId: 'G-NTLV8WPJRJ',
   );
+
 }
